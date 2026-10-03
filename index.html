@@ -73,6 +73,13 @@
   details summary { cursor: pointer; font-family: var(--mono); font-size: 12px; letter-spacing: 0.1em; color: var(--ink-2); text-transform: uppercase; }
   .log { font-family: var(--mono); font-size: 11.5px; line-height: 1.55; color: var(--ink-2); background: #0b2442; border: 1px solid #2C5480; padding: 8px 10px; height: 200px; overflow: auto; white-space: pre; margin-top: 10px; }
   .warn { color: var(--amber); font-size: 14px; line-height: 1.5; }
+  .pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+  .pad button { min-height: 86px; font-size: 40px; line-height: 1; padding: 0; touch-action: none; }
+  .pad .b-dir { background: #3b2a55; border-color: var(--purple); }
+  .pad .b-dir.held { background: #6b4aa0; box-shadow: 0 0 18px var(--purple); }
+  .pad .b-mid { background: #8a2f28; border-color: var(--red); font-size: 22px; }
+  .pad .gap { visibility: hidden; }
+  .hint { font-size: 14px; color: var(--ink-2); line-height: 1.45; }
   .hidden { display: none !important; }
 </style>
 </head>
@@ -83,7 +90,7 @@
       <div class="kicker">J.D. · PHONE CONTROL</div>
       <h1>J.D. Phone</h1>
     </div>
-    <div class="ver">for J.D. v0.7<br>Bluetooth</div>
+    <div class="ver">for J.D. v0.8<br>Bluetooth</div>
   </header>
 
   <div id="noBle" class="card hidden" role="alert">
@@ -108,6 +115,22 @@
       <div class="label">Ahead</div>
       <div class="ahead" id="aheadOut">—</div>
     </div>
+  </section>
+
+  <section class="card" aria-label="Drive">
+    <div class="label">Drive (hold an arrow)</div>
+    <div class="pad" id="pad">
+      <span class="gap"></span>
+      <button class="b-dir" data-dir="f" type="button" aria-label="Forward" disabled>▲</button>
+      <span class="gap"></span>
+      <button class="b-dir" data-dir="l" type="button" aria-label="Turn left" disabled>◀</button>
+      <button class="b-mid" id="btnPadStop" type="button" disabled>STOP</button>
+      <button class="b-dir" data-dir="r" type="button" aria-label="Turn right" disabled>▶</button>
+      <span class="gap"></span>
+      <button class="b-dir" data-dir="b" type="button" aria-label="Back" disabled>▼</button>
+      <span class="gap"></span>
+    </div>
+    <div class="hint">J.D. only moves while your finger is on an arrow. Let go and it stops. It won't drive forward into something close or over an edge.</div>
   </section>
 
   <section class="card" aria-label="Controls">
@@ -166,6 +189,9 @@
     EDGE:        ['Edge!',       'The floor disappeared. Backing away.',      C.red],
     EDGE_GUARD_ON:  ['Exploring', 'Edge guard ON: it can see edges here.',   C.cyan],
     EDGE_GUARD_OFF: ['Exploring', 'Edge guard OFF: floor too dark to see edges. Keep it on the floor.', C.amber],
+    DRIVE_START: ['Driving',     'Hold an arrow to move. Let go to stop.',   C.purple],
+    DRIVE:       ['Driving',     'Hold an arrow to move. Let go to stop.',   C.purple],
+    BLOCKED:     ['Blocked',     'Something is close ahead. Back up or turn.', C.amber],
     SWEEP_START: ['Sentry',      'Scanning the room step by step.',           C.amber],
     SWEEP:       ['Sentry',      'Scanning the room step by step.',           C.amber],
     SEARCH:      ['Searching',   'Looking near the target.',                  C.amber],
@@ -177,7 +203,7 @@
     SAFETY_STOP: ['Safety stop', 'Something is too close. Holding.',          C.red],
   };
   const EXPLORE_KEYS = ['EXPLORE', 'ROAM', 'WANDER', 'CURIOUS', 'PEEK', 'FAMILIAR', 'STUCK', 'EDGE', 'EDGE_GUARD_ON', 'EDGE_GUARD_OFF'];
-  const MEASURING = ['ROAM', 'CURIOUS', 'PEEK', 'FAMILIAR', 'STUCK', 'SWEEP', 'SEARCH', 'CENTER', 'WATCH', 'LOCK', 'SAFETY_STOP', 'LOST'];
+  const MEASURING = ['DRIVE', 'BLOCKED', 'ROAM', 'CURIOUS', 'PEEK', 'FAMILIAR', 'STUCK', 'SWEEP', 'SEARCH', 'CENTER', 'WATCH', 'LOCK', 'SAFETY_STOP', 'LOST'];
 
   // ---------- Voice ----------
   const PHRASES = {
@@ -189,6 +215,8 @@
     GUARD_OFF: ['My floor sensor can\'t see edges here. Keep me on the floor.'],
     STOP: ['Stopping.', 'Okay. Standing by.'],
     HELLO: ['Connected. Hello. I am J.D.'],
+    DRIVE: ['Manual control.', 'You drive.', 'Okay, you have the wheel.'],
+    BLOCKED: ['Something is in the way.', 'Can\'t go that way.', 'Blocked.'],
   };
   const synth = 'speechSynthesis' in window ? window.speechSynthesis : null;
   let voices = [];
@@ -316,23 +344,57 @@
   }
 
   let sendChain = Promise.resolve();
-  function send(ch) {
+  let inFlight = 0;
+  function send(ch, quiet) {
     if (!writeChar) return;
     const bytes = new TextEncoder().encode(ch);
+    inFlight++;
     sendChain = sendChain.then(async () => {
       try {
+        if (!writeChar) return;
         if (writeChar.properties && writeChar.properties.writeWithoutResponse && writeChar.writeValueWithoutResponse) await writeChar.writeValueWithoutResponse(bytes);
         else await writeChar.writeValue(bytes);
-        log('> sent "' + ch + '"');
+        if (!quiet) log('> sent "' + ch + '"');
       } catch (err) { log('! Could not send: ' + (err && err.message || err)); }
+      finally { inFlight--; }
     });
   }
+
+  // ---------- Hold-to-drive (like an enabling switch) ----------
+  // While an arrow is held, the command is repeated every 150 ms.
+  // J.D. stops by itself if the repeats stop for 0.4 s.
+  let driveTimer = null, driveBtn = null;
+  function holdDrive(btn) {
+    if (!connected) return;
+    releaseDrive(false);
+    driveBtn = btn;
+    btn.classList.add('held');
+    const dir = btn.dataset.dir;
+    send(dir, true);
+    driveTimer = setInterval(() => { if (inFlight < 2) send(dir, true); }, 150);
+    if (navigator.vibrate) navigator.vibrate(15);
+  }
+  function releaseDrive(sendHalt = true) {
+    if (driveTimer) { clearInterval(driveTimer); driveTimer = null; }
+    if (driveBtn) { driveBtn.classList.remove('held'); driveBtn = null; if (sendHalt) send('h', true); }
+  }
+  document.querySelectorAll('#pad .b-dir').forEach(btn => {
+    btn.addEventListener('pointerdown', (e) => { e.preventDefault(); try { btn.setPointerCapture(e.pointerId); } catch (_) {} holdDrive(btn); });
+    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => btn.addEventListener(ev, () => { if (driveBtn === btn) releaseDrive(); }));
+    btn.addEventListener('contextmenu', (e) => e.preventDefault());
+  });
+  $('btnPadStop').addEventListener('click', () => { releaseDrive(false); send('s'); });
+  // Let go of everything if the page is hidden (screen off, app switched).
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState !== 'visible') releaseDrive(); });
+  window.addEventListener('blur', () => releaseDrive());
 
   function setConnected(on) {
     connected = on;
     if (!on) { writeChar = null; notifyChar = null; }
     $('btnConnect').textContent = on ? 'Disconnect' : 'Connect to J.D.';
-    ['btnExplore', 'btnStop', 'btnSentry'].forEach(id => $(id).disabled = !on);
+    ['btnExplore', 'btnStop', 'btnSentry', 'btnPadStop'].forEach(id => $(id).disabled = !on);
+    document.querySelectorAll('#pad .b-dir').forEach(b => b.disabled = !on);
+    if (!on) releaseDrive(false);
     if (on) {
       $('connText').innerHTML = '<b>Connected to ' + ((device && device.name) || 'J.D.') + '.</b> Screen stays on while connected.';
       keepAwake();
@@ -370,6 +432,8 @@
     if (key === 'FAMILIAR') say(pick(PHRASES.FAMILIAR), { kind: 'familiar', gap: 3000 });
     if (key === 'STUCK')    say(pick(PHRASES.STUCK),    { kind: 'stuck', gap: 3000 });
     if (key === 'EDGE')     say(pick(PHRASES.EDGE),     { kind: 'edge', force: true });
+    if (key === 'DRIVE_START') say(pick(PHRASES.DRIVE), { kind: 'drive', gap: 15000 });
+    if (key === 'BLOCKED')  say(pick(PHRASES.BLOCKED),  { kind: 'blocked', gap: 3000 });
     if (key === 'STANDBY' && prev && EXPLORE_KEYS.includes(prev)) say(pick(PHRASES.STOP), { kind: 'stop', gap: 0 });
     if (guardOff && (key === 'EXPLORE' || key === 'ROAM' || key === 'WANDER')) $('stateSub').textContent = STATES.EDGE_GUARD_OFF[1];
   }
@@ -408,7 +472,8 @@
   if (location.hash === '#demo') {
     const lines = ['JD,STANDBY,0,0.0', 'JD,EDGE_GUARD_ON,0,3.0', 'JD,EXPLORE,0,0.0', 'JD,ROAM,0,140.0', 'JD,ROAM,0,62.0',
                    'JD,CURIOUS,0,28.0', 'JD,PEEK,-3,45.0', 'JD,PEEK,3,90.0', 'JD,EXPLORE,2,0.0', 'JD,ROAM,2,35.0',
-                   'JD,FAMILIAR,2,29.0', 'JD,EXPLORE,9,0.0', 'JD,ROAM,9,51.0', 'JD,STUCK,9,51.2', 'JD,EXPLORE,4,0.0'];
+                   'JD,FAMILIAR,2,29.0', 'JD,EXPLORE,9,0.0', 'JD,ROAM,9,51.0', 'JD,STUCK,9,51.2', 'JD,EXPLORE,4,0.0',
+                   'JD,DRIVE_START,4,1.0', 'JD,DRIVE,4,80.0', 'JD,DRIVE,4,40.0', 'JD,BLOCKED,4,14.0', 'JD,DRIVE,4,14.2'];
     lines.forEach((l, i) => setTimeout(() => handleLine(l), 450 * i));
   }
 })();
