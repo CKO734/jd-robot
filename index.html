@@ -90,7 +90,7 @@
       <div class="kicker">J.D. · PHONE CONTROL</div>
       <h1>J.D. Phone</h1>
     </div>
-    <div class="ver">for J.D. v0.9<br>Bluetooth</div>
+    <div class="ver">for J.D. v1.1<br>Bluetooth</div>
   </header>
 
   <div id="noBle" class="card hidden" role="alert">
@@ -203,9 +203,11 @@
     LOCK:        ['Locked on',   'Watching the closest thing.',               C.green],
     WATCH:       ['Watching',    'Holding still on the target.',              C.green],
     SAFETY_STOP: ['Safety stop', 'Something is too close. Holding.',          C.red],
+    LOOK:        ['Looking first', 'Checking the new way is clear before going.', C.cyan],
+    BACKOFF:     ['Too close!',  'Backing up to make room before turning.',   C.amber],
   };
-  const EXPLORE_KEYS = ['EXPLORE', 'ROAM', 'WANDER', 'CURIOUS', 'PEEK', 'FAMILIAR', 'CORNERED', 'SCAN', 'STUCK', 'EDGE', 'EDGE_GUARD_ON', 'EDGE_GUARD_OFF'];
-  const MEASURING = ['SCAN', 'CORNERED', 'DRIVE', 'BLOCKED', 'ROAM', 'CURIOUS', 'PEEK', 'FAMILIAR', 'STUCK', 'SWEEP', 'SEARCH', 'CENTER', 'WATCH', 'LOCK', 'SAFETY_STOP', 'LOST'];
+  const EXPLORE_KEYS = ['LOOK', 'BACKOFF', 'EXPLORE', 'ROAM', 'WANDER', 'CURIOUS', 'PEEK', 'FAMILIAR', 'CORNERED', 'SCAN', 'STUCK', 'EDGE', 'EDGE_GUARD_ON', 'EDGE_GUARD_OFF'];
+  const MEASURING = ['LOOK', 'BACKOFF', 'SCAN', 'CORNERED', 'DRIVE', 'BLOCKED', 'ROAM', 'CURIOUS', 'PEEK', 'FAMILIAR', 'STUCK', 'SWEEP', 'SEARCH', 'CENTER', 'WATCH', 'LOCK', 'SAFETY_STOP', 'LOST'];
 
   // ---------- Voice ----------
   const PHRASES = {

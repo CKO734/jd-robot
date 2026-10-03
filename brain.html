@@ -99,7 +99,7 @@
       <div class="kicker">J.D. · BRAIN · LOCAL AI</div>
       <h1>J.D. Brain</h1>
     </div>
-    <div class="tag">J.D. v0.9 · USB or Bluetooth · Ollama on this PC<br>Chrome · nothing leaves your computer except speech-to-text</div>
+    <div class="tag">J.D. v1.1 · USB or Bluetooth · Ollama on this PC<br>Chrome · nothing leaves your computer except speech-to-text</div>
   </header>
 
   <div id="noSerial" class="card hidden" role="alert">
@@ -219,8 +219,10 @@
     SAFETY_STOP: ['Safety stop', 'Something is too close. Holding.', C.red],
     CORNERED: ['Cornered!', 'Boxed in. Backing out to look for a way out.', C.amber],
     SCAN: ['Looking around', 'Searching all around for the most open way.', C.amber],
+    LOOK: ['Looking first', 'Checking the new way is clear before going.', C.cyan],
+    BACKOFF: ['Too close!', 'Backing up to make room before turning.', C.amber],
   };
-  const MEASURING = ['SCAN', 'CORNERED', 'ROAM', 'CURIOUS', 'PEEK', 'FAMILIAR', 'STUCK', 'DRIVE', 'BLOCKED', 'SWEEP', 'SEARCH', 'CENTER', 'WATCH', 'LOCK', 'SAFETY_STOP', 'LOST'];
+  const MEASURING = ['LOOK', 'BACKOFF', 'SCAN', 'CORNERED', 'ROAM', 'CURIOUS', 'PEEK', 'FAMILIAR', 'STUCK', 'DRIVE', 'BLOCKED', 'SWEEP', 'SEARCH', 'CENTER', 'WATCH', 'LOCK', 'SAFETY_STOP', 'LOST'];
 
   // Moments J.D. can talk about, and a backup line for each in case the brain is busy or offline.
   const EVENTS = {
