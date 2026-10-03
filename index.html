@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0E2C4E">
+<title>J.D. Phone</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --bg: #0E2C4E;
+    --panel: rgba(8, 28, 52, 0.8);
+    --line: #3E6A96;
+    --ink: #E8F1FA;
+    --ink-2: #A9C3DD;
+    --amber: #FFB547;
+    --green: #6EE7B7;
+    --red: #FF6B5E;
+    --blue: #7CC4FF;
+    --cyan: #5EE0F0;
+    --purple: #C792FF;
+    --display: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+    --mono: 'IBM Plex Mono', ui-monospace, monospace;
+    --body: 'IBM Plex Sans', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    min-height: 100vh;
+    background-color: var(--bg);
+    background-image:
+      linear-gradient(rgba(124,196,255,0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(124,196,255,0.06) 1px, transparent 1px);
+    background-size: 32px 32px;
+    color: var(--ink);
+    font-family: var(--body);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .wrap { max-width: 560px; margin: 0 auto; padding: max(16px, env(safe-area-inset-top)) 16px 32px; display: flex; flex-direction: column; gap: 14px; }
+  header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 1.5px solid var(--line); padding-bottom: 10px; }
+  .kicker { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; color: var(--ink-2); }
+  h1 { margin: 2px 0 0; font-family: var(--display); font-weight: 700; font-size: 40px; line-height: 1; }
+  .ver { font-family: var(--mono); font-size: 11px; color: var(--ink-2); text-align: right; }
+  .card { border: 1px solid var(--line); background: var(--panel); padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+  .label { font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; color: var(--ink-2); text-transform: uppercase; }
+  .conn { font-size: 15px; color: var(--ink-2); line-height: 1.45; }
+  .conn b { color: var(--ink); }
+  button {
+    font-family: var(--display); font-weight: 600; font-size: 22px; letter-spacing: 0.06em; text-transform: uppercase;
+    min-height: 56px; padding: 0 16px; border-radius: 8px; cursor: pointer; width: 100%;
+    border: 1.5px solid var(--line); background: #133963; color: var(--ink);
+  }
+  button:active:not(:disabled) { transform: translateY(1px); filter: brightness(1.15); }
+  button:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+  button:disabled { opacity: 0.38; }
+  .b-connect { background: #1a4f86; border-color: var(--blue); }
+  .b-explore { background: #145a66; border-color: var(--cyan); min-height: 84px; font-size: 30px; }
+  .b-stop { background: #8a2f28; border-color: var(--red); min-height: 84px; font-size: 30px; }
+  .b-sentry { background: #1f6b4f; border-color: var(--green); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .status { display: flex; align-items: center; gap: 14px; }
+  .lamp { width: 56px; height: 56px; border-radius: 50%; background: #23415f; border: 2px solid var(--line); flex: none; transition: background 0.2s, box-shadow 0.2s; }
+  .state-name { font-family: var(--display); font-weight: 700; font-size: 34px; line-height: 1; }
+  .state-sub { font-size: 14px; color: var(--ink-2); margin-top: 4px; line-height: 1.4; }
+  .ahead { font-family: var(--display); font-weight: 600; font-size: 44px; line-height: 1; }
+  .ahead small { font-size: 20px; color: var(--ink-2); margin-left: 4px; }
+  .says { font-family: var(--display); font-weight: 600; font-size: 30px; line-height: 1.15; color: var(--purple); min-height: 36px; }
+  .row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .check { display: flex; align-items: center; gap: 10px; font-size: 16px; }
+  .check input { width: 24px; height: 24px; accent-color: var(--cyan); }
+  select { font-family: var(--mono); font-size: 15px; color: var(--ink); background: #0b2442; border: 1px solid var(--line); border-radius: 6px; padding: 10px; min-height: 44px; width: 100%; }
+  .field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--ink-2); }
+  details summary { cursor: pointer; font-family: var(--mono); font-size: 12px; letter-spacing: 0.1em; color: var(--ink-2); text-transform: uppercase; }
+  .log { font-family: var(--mono); font-size: 11.5px; line-height: 1.55; color: var(--ink-2); background: #0b2442; border: 1px solid #2C5480; padding: 8px 10px; height: 200px; overflow: auto; white-space: pre; margin-top: 10px; }
+  .warn { color: var(--amber); font-size: 14px; line-height: 1.5; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <div class="kicker">J.D. · PHONE CONTROL</div>
+      <h1>J.D. Phone</h1>
+    </div>
+    <div class="ver">for J.D. v0.7<br>Bluetooth</div>
+  </header>
+
+  <div id="noBle" class="card hidden" role="alert">
+    <div class="warn">This browser can't use Bluetooth from a web page. On the Samsung, open this page in <b>Google Chrome</b>, from its <b>https://</b> address.</div>
+  </div>
+
+  <section class="card" aria-label="Connection">
+    <div class="label">Connection</div>
+    <div class="conn" id="connText">Bluetooth chip in J.D., USB cable unplugged, J.D. switched on. Then tap Connect and pick the one named <b>Makeblock</b>.</div>
+    <button id="btnConnect" class="b-connect" type="button">Connect to J.D.</button>
+  </section>
+
+  <section class="card" aria-label="Status">
+    <div class="status">
+      <div class="lamp" id="lamp" aria-hidden="true"></div>
+      <div>
+        <div class="state-name" id="stateName">Offline</div>
+        <div class="state-sub" id="stateSub">Not connected yet.</div>
+      </div>
+    </div>
+    <div>
+      <div class="label">Ahead</div>
+      <div class="ahead" id="aheadOut">—</div>
+    </div>
+  </section>
+
+  <section class="card" aria-label="Controls">
+    <button id="btnExplore" class="b-explore" type="button" disabled>Explore</button>
+    <button id="btnStop" class="b-stop" type="button" disabled>Stop</button>
+    <div class="grid2">
+      <button id="btnSentry" class="b-sentry" type="button" disabled>Sentry</button>
+      <button id="btnSay" type="button">Test voice</button>
+    </div>
+  </section>
+
+  <section class="card" aria-label="Voice">
+    <div class="label">J.D. says</div>
+    <div class="says" id="saysOut" aria-live="polite">…</div>
+    <label class="check"><input type="checkbox" id="voiceOn" checked> J.D. talks</label>
+    <div class="grid2">
+      <label class="field">Voice<select id="voiceSel"></select></label>
+      <label class="field">Pitch
+        <select id="pitchIn">
+          <option value="0.6">Low</option>
+          <option value="0.85" selected>Robot</option>
+          <option value="1">Normal</option>
+          <option value="1.3">High</option>
+        </select>
+      </label>
+    </div>
+    <div class="warn">Explore on the floor. Turn the phone's volume up.</div>
+  </section>
+
+  <section class="card">
+    <details>
+      <summary>What J.D. is saying (log)</summary>
+      <div class="log" id="log"></div>
+    </details>
+  </section>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const css = getComputedStyle(document.documentElement);
+  const C = {};
+  ['ink', 'ink-2', 'amber', 'green', 'red', 'blue', 'cyan', 'purple'].forEach(k => C[k.replace('-', '')] = css.getPropertyValue('--' + k).trim());
+
+  // ---------- What each message from J.D. means ----------
+  const STATES = {
+    STANDBY:     ['Standby',     'Ready. Tap Explore.',                       C.blue],
+    ZERO:        ['Standby',     'Heading set to zero.',                      C.blue],
+    EXPLORE:     ['Exploring',   'Driving around, looking for things.',       C.cyan],
+    ROAM:        ['Exploring',   'Driving around, looking for things.',       C.cyan],
+    WANDER:      ['Exploring',   'Wandering a little to the side.',           C.cyan],
+    CURIOUS:     ['Curious!',    'Found something. Taking a look.',           C.purple],
+    PEEK:        ['Curious!',    'Peeking left and right.',                   C.purple],
+    FAMILIAR:    ['Oh, you again', 'Met this already. Turning around.',       C.purple],
+    STUCK:       ['Stuck!',      'Pushing on something it can\'t hear. Backing out.', C.amber],
+    EDGE:        ['Edge!',       'The floor disappeared. Backing away.',      C.red],
+    EDGE_GUARD_ON:  ['Exploring', 'Edge guard ON: it can see edges here.',   C.cyan],
+    EDGE_GUARD_OFF: ['Exploring', 'Edge guard OFF: floor too dark to see edges. Keep it on the floor.', C.amber],
+    SWEEP_START: ['Sentry',      'Scanning the room step by step.',           C.amber],
+    SWEEP:       ['Sentry',      'Scanning the room step by step.',           C.amber],
+    SEARCH:      ['Searching',   'Looking near the target.',                  C.amber],
+    CENTER:      ['Centering',   'Aiming at the middle of the target.',       C.amber],
+    REACQUIRE:   ['Searching',   'Target moved. Looking for it.',             C.amber],
+    LOST:        ['Lost it',     'Target moved. Looking for it.',             C.amber],
+    LOCK:        ['Locked on',   'Watching the closest thing.',               C.green],
+    WATCH:       ['Watching',    'Holding still on the target.',              C.green],
+    SAFETY_STOP: ['Safety stop', 'Something is too close. Holding.',          C.red],
+  };
+  const EXPLORE_KEYS = ['EXPLORE', 'ROAM', 'WANDER', 'CURIOUS', 'PEEK', 'FAMILIAR', 'STUCK', 'EDGE', 'EDGE_GUARD_ON', 'EDGE_GUARD_OFF'];
+  const MEASURING = ['ROAM', 'CURIOUS', 'PEEK', 'FAMILIAR', 'STUCK', 'SWEEP', 'SEARCH', 'CENTER', 'WATCH', 'LOCK', 'SAFETY_STOP', 'LOST'];
+
+  // ---------- Voice ----------
+  const PHRASES = {
+    CURIOUS: ['Oh! What is this?', 'Hmm. What\'s that?', 'Oh, something is here.', 'What do we have here?', 'Hello? Who\'s there?', 'Huh. Interesting.'],
+    FAMILIAR: ['Oh. It\'s you again.', 'I already met you.', 'This again? Okay.', 'Hello again, old friend.', 'Yep. Still here.', 'Been there. Turning around.'],
+    STUCK: ['Uh oh. I\'m stuck.', 'Hmm. Something is blocking me.', 'Little help? Never mind, I got it.', 'Backing out.'],
+    EDGE: ['Whoa! That\'s an edge.', 'Nope. Not going over there.', 'Careful. Edge.'],
+    START: ['Exploring.', 'Let\'s see what\'s out there.', 'Off I go.'],
+    GUARD_OFF: ['My floor sensor can\'t see edges here. Keep me on the floor.'],
+    STOP: ['Stopping.', 'Okay. Standing by.'],
+    HELLO: ['Connected. Hello. I am J.D.'],
+  };
+  const synth = 'speechSynthesis' in window ? window.speechSynthesis : null;
+  let voices = [];
+  const lastSpoke = {};
+  const lastPick = new Map();
+  function pick(list) {
+    let i = Math.floor(Math.random() * list.length);
+    if (list.length > 1 && i === lastPick.get(list)) i = (i + 1) % list.length;
+    lastPick.set(list, i);
+    return list[i];
+  }
+  function loadVoices() {
+    if (!synth) return;
+    voices = synth.getVoices();
+    const sel = $('voiceSel'), keep = sel.value;
+    const list = voices.filter(v => /^en/i.test(v.lang)).concat(voices.filter(v => !/^en/i.test(v.lang)));
+    sel.innerHTML = '';
+    list.forEach(v => { const o = document.createElement('option'); o.value = v.name; o.textContent = v.name; sel.appendChild(o); });
+    if (keep && list.some(v => v.name === keep)) sel.value = keep;
+  }
+  if (synth) { loadVoices(); synth.addEventListener('voiceschanged', loadVoices); }
+  function say(text, opts = {}) {
+    const now = performance.now(), kind = opts.kind || 'other';
+    if (!opts.force && now - (lastSpoke[kind] || -1e9) < (opts.gap ?? 4000)) return;
+    lastSpoke[kind] = now;
+    $('saysOut').textContent = '“' + text + '”';
+    log('J.D. says: ' + text);
+    if (!synth || !$('voiceOn').checked) return;
+    if (opts.force) synth.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    const v = voices.find(v => v.name === $('voiceSel').value);
+    if (v) { u.voice = v; u.lang = v.lang; }
+    u.pitch = parseFloat($('pitchIn').value) || 0.85;
+    synth.speak(u);
+  }
+
+  // ---------- Bluetooth ----------
+  // The Makeblock chip is a wireless serial cable. People report it
+  // uses service ffe1 (read ffe2, write ffe3). Two other common
+  // layouts are tried too, in case this chip is different.
+  const PROFILES = [
+    { name: 'Makeblock', service: 0xffe1, notify: 0xffe2, write: 0xffe3 },
+    { name: 'HM-10',     service: 0xffe0, notify: 0xffe1, write: 0xffe1 },
+    { name: 'Nordic UART', service: '6e400001-b5a3-f393-e0a9-e50e24dcca9e',
+      notify: '6e400003-b5a3-f393-e0a9-e50e24dcca9e', write: '6e400002-b5a3-f393-e0a9-e50e24dcca9e' },
+  ];
+  let device = null, writeChar = null, notifyChar = null, connected = false;
+  let wakeLock = null, stateKey = null, guardOff = false;
+  const decoder = new TextDecoder();
+  let buf = '';
+
+  if (!('bluetooth' in navigator)) {
+    $('noBle').classList.remove('hidden');
+    $('btnConnect').disabled = true;
+  }
+
+  $('btnConnect').addEventListener('click', async () => {
+    if (connected) { disconnect(); return; }
+    try {
+      $('connText').textContent = 'Pick J.D. in the list (named Makeblock)…';
+      device = await navigator.bluetooth.requestDevice({
+        acceptAllDevices: true,
+        optionalServices: PROFILES.map(p => p.service),
+      });
+      device.addEventListener('gattserverdisconnected', onDropped);
+      $('connText').textContent = 'Connecting to ' + (device.name || 'device') + '…';
+      const server = await device.gatt.connect();
+      let used = null;
+      for (const p of PROFILES) {
+        try {
+          const svc = await server.getPrimaryService(p.service);
+          const n = await svc.getCharacteristic(p.notify);
+          const w = await svc.getCharacteristic(p.write);
+          await n.startNotifications();
+          n.addEventListener('characteristicvaluechanged', onData);
+          notifyChar = n; writeChar = w; used = p;
+          break;
+        } catch (e) { log('· ' + p.name + ' layout: not here'); }
+      }
+      if (!used) {
+        try {
+          const all = await server.getPrimaryServices();
+          log('! Services found: ' + all.map(s => s.uuid).join(', '));
+        } catch (e) {}
+        throw new Error('Connected, but could not find the serial channel. Send Claude the log below.');
+      }
+      log('Connected using the ' + used.name + ' layout.');
+      setConnected(true);
+      say(PHRASES.HELLO[0], { force: true, kind: 'hello' });
+      setTimeout(() => send('i'), 600);
+    } catch (err) {
+      const msg = String(err && err.message || err);
+      if (/cancel/i.test(msg) || err.name === 'NotFoundError') {
+        $('connText').innerHTML = 'No device picked. Tap Connect and choose the one named <b>Makeblock</b>.';
+        return;
+      }
+      $('connText').textContent = msg;
+      log('! ' + msg);
+      try { device && device.gatt.connected && device.gatt.disconnect(); } catch (e) {}
+      setConnected(false);
+    }
+  });
+
+  function disconnect() {
+    try { device && device.gatt.connected && device.gatt.disconnect(); } catch (e) {}
+    setConnected(false);
+  }
+
+  function onDropped() {
+    if (!connected) return;
+    log('! Bluetooth link dropped.');
+    setConnected(false);
+    $('connText').innerHTML = '<b>Link dropped.</b> J.D. may be too far away or switched off. Tap Connect to try again.';
+  }
+
+  function onData(ev) {
+    buf += decoder.decode(ev.target.value, { stream: true });
+    let i;
+    while ((i = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, i).replace(/\r/g, '').trim();
+      buf = buf.slice(i + 1);
+      if (line) handleLine(line);
+    }
+    if (buf.length > 500) buf = '';
+  }
+
+  let sendChain = Promise.resolve();
+  function send(ch) {
+    if (!writeChar) return;
+    const bytes = new TextEncoder().encode(ch);
+    sendChain = sendChain.then(async () => {
+      try {
+        if (writeChar.properties && writeChar.properties.writeWithoutResponse && writeChar.writeValueWithoutResponse) await writeChar.writeValueWithoutResponse(bytes);
+        else await writeChar.writeValue(bytes);
+        log('> sent "' + ch + '"');
+      } catch (err) { log('! Could not send: ' + (err && err.message || err)); }
+    });
+  }
+
+  function setConnected(on) {
+    connected = on;
+    if (!on) { writeChar = null; notifyChar = null; }
+    $('btnConnect').textContent = on ? 'Disconnect' : 'Connect to J.D.';
+    ['btnExplore', 'btnStop', 'btnSentry'].forEach(id => $(id).disabled = !on);
+    if (on) {
+      $('connText').innerHTML = '<b>Connected to ' + ((device && device.name) || 'J.D.') + '.</b> Screen stays on while connected.';
+      keepAwake();
+    } else {
+      if (!/dropped/i.test($('connText').textContent)) $('connText').innerHTML = 'Not connected. Tap Connect and pick the one named <b>Makeblock</b>.';
+      setState(null);
+      releaseAwake();
+    }
+  }
+
+  // Keep the phone screen on while it rides along.
+  async function keepAwake() {
+    try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
+  }
+  function releaseAwake() { try { wakeLock && wakeLock.release(); } catch (e) {} wakeLock = null; }
+  document.addEventListener('visibilitychange', () => { if (connected && document.visibilityState === 'visible') keepAwake(); });
+
+  // ---------- Messages from J.D. ----------
+  function handleLine(line) {
+    log(line);
+    if (!line.startsWith('JD,')) return;
+    const parts = line.split(',');
+    if (parts.length < 4) return;
+    const key = parts[1];
+    const cm = parseFloat(parts[3]);
+    if (key === 'STEPS' || key.startsWith('CAL')) return;
+
+    const prev = stateKey;
+    setState(key);
+    if (MEASURING.includes(key) && cm > 0) showAhead(cm);
+
+    if (key === 'EDGE_GUARD_ON')  { guardOff = false; say(pick(PHRASES.START), { kind: 'start', gap: 0 }); }
+    if (key === 'EDGE_GUARD_OFF') { guardOff = true;  say(PHRASES.GUARD_OFF[0], { kind: 'start', gap: 0 }); }
+    if (key === 'CURIOUS')  say(pick(PHRASES.CURIOUS),  { kind: 'curious', gap: 3000 });
+    if (key === 'FAMILIAR') say(pick(PHRASES.FAMILIAR), { kind: 'familiar', gap: 3000 });
+    if (key === 'STUCK')    say(pick(PHRASES.STUCK),    { kind: 'stuck', gap: 3000 });
+    if (key === 'EDGE')     say(pick(PHRASES.EDGE),     { kind: 'edge', force: true });
+    if (key === 'STANDBY' && prev && EXPLORE_KEYS.includes(prev)) say(pick(PHRASES.STOP), { kind: 'stop', gap: 0 });
+    if (guardOff && (key === 'EXPLORE' || key === 'ROAM' || key === 'WANDER')) $('stateSub').textContent = STATES.EDGE_GUARD_OFF[1];
+  }
+
+  function setState(key) {
+    stateKey = key;
+    const s = key ? (STATES[key] || [key, '', C.ink2]) : null;
+    $('stateName').textContent = s ? s[0] : 'Offline';
+    $('stateSub').textContent = s ? s[1] : 'Not connected yet.';
+    $('lamp').style.background = s ? s[2] : '#23415f';
+    $('lamp').style.boxShadow = s ? '0 0 26px ' + s[2] : 'none';
+    if (!key) $('aheadOut').textContent = '—';
+  }
+
+  function showAhead(cm) {
+    $('aheadOut').innerHTML = cm >= 400 ? 'clear' : Math.round(cm) + '<small>cm</small>';
+  }
+
+  // ---------- Buttons ----------
+  $('btnExplore').addEventListener('click', () => send('e'));
+  $('btnStop').addEventListener('click', () => send('s'));
+  $('btnSentry').addEventListener('click', () => send('g'));
+  $('btnSay').addEventListener('click', () => say('Hello. I am J.D. Let\'s go exploring.', { force: true, kind: 'test' }));
+
+  // ---------- Log ----------
+  const logLines = [];
+  function log(text) {
+    const t = new Date().toLocaleTimeString([], { hour12: false });
+    logLines.push(t + '  ' + text);
+    if (logLines.length > 200) logLines.shift();
+    $('log').textContent = logLines.join('\n');
+    $('log').scrollTop = $('log').scrollHeight;
+  }
+
+  // Demo: add #demo to the address to see fake messages (no robot needed).
+  if (location.hash === '#demo') {
+    const lines = ['JD,STANDBY,0,0.0', 'JD,EDGE_GUARD_ON,0,3.0', 'JD,EXPLORE,0,0.0', 'JD,ROAM,0,140.0', 'JD,ROAM,0,62.0',
+                   'JD,CURIOUS,0,28.0', 'JD,PEEK,-3,45.0', 'JD,PEEK,3,90.0', 'JD,EXPLORE,2,0.0', 'JD,ROAM,2,35.0',
+                   'JD,FAMILIAR,2,29.0', 'JD,EXPLORE,9,0.0', 'JD,ROAM,9,51.0', 'JD,STUCK,9,51.2', 'JD,EXPLORE,4,0.0'];
+    lines.forEach((l, i) => setTimeout(() => handleLine(l), 450 * i));
+  }
+})();
+</script>
+</body>
+</html>
