@@ -351,7 +351,7 @@
     busy = true;
     $('thinking').textContent = 'J.D. is thinking…';
     const rules = allowAction
-      ? 'Reply ONLY with JSON like {"say": "...", "do": "none"}. "do" must be one of: "explore" (start driving around on your own), "sentry" (stand still and scan for the closest thing), "stop" (stop everything), "none". Only choose explore, sentry or stop when the person clearly asks you to move, scan or stop. Otherwise use "none".'
+      ? 'Reply ONLY with JSON like {"say": "...", "do": "none"}. "do" must be one of: "explore" (start driving around on your own), "sentry" (stand still and scan for the closest thing), "stop" (stop everything), "none". Only choose explore, sentry or stop when the person clearly tells you to move, scan or stop. Greetings, questions and small talk ("how are you?", "tell me a joke") are ALWAYS "none".'
       : 'Reply ONLY with JSON like {"say": "...", "do": "none"}. "do" must be "none".';
     const messages = [
       { role: 'system', content: $('persona').value + '\n\n' + rules },
@@ -440,6 +440,16 @@
       return;
     }
     let act = '';
+    // Permissive check, like a two-hand control: the AI may only start
+    // J.D. moving if YOUR words asked for it. Stopping is always allowed.
+    const INTENT = {
+      explore: /\b(explore|go|roam|wander|drive|move|look around|adventure|patrol|search|run)\b/i,
+      sentry: /\b(sentry|guard|watch|scan|keep watch|look out)\b/i,
+    };
+    if ((out.do === 'explore' || out.do === 'sentry') && !INTENT[out.do].test(text)) {
+      act = 'wanted to ' + out.do + ', but you didn\'t ask, so it stayed put';
+      out.do = 'none';
+    }
     if (out.do === 'explore') { if (connected) { send('e'); act = 'starting Explore'; } else act = 'wanted to explore, but J.D. is not connected'; }
     if (out.do === 'sentry')  { if (connected) { send('g'); act = 'starting Sentry'; } else act = 'wanted Sentry, but J.D. is not connected'; }
     if (out.do === 'stop')    { send('s'); act = 'stopping'; }
