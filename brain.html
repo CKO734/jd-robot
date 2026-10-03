@@ -480,7 +480,11 @@
   $('btnConnect').addEventListener('click', async () => {
     if (port) { await disconnect(); return; }
     try {
-      const p = await navigator.serial.requestPort();
+      // If this page was already allowed to use J.D.'s port before, reuse it
+      // (no chooser). Otherwise Chrome shows the port chooser.
+      let p = null;
+      try { const known = await navigator.serial.getPorts(); if (known.length === 1) p = known[0]; } catch (_) {}
+      if (!p) p = await navigator.serial.requestPort();
       await p.open({ baudRate: 115200 });
       port = p;
       writer = port.writable.getWriter();
