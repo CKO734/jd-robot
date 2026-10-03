@@ -99,7 +99,7 @@
       <div class="kicker">J.D. · BRAIN · LOCAL AI</div>
       <h1>J.D. Brain</h1>
     </div>
-    <div class="tag">J.D. v0.8 over USB · Ollama on this PC<br>Chrome · nothing leaves your computer except speech-to-text</div>
+    <div class="tag">J.D. v0.9 · USB or Bluetooth · Ollama on this PC<br>Chrome · nothing leaves your computer except speech-to-text</div>
   </header>
 
   <div id="noSerial" class="card hidden" role="alert">
@@ -143,9 +143,12 @@
 
     <div class="col-side">
       <section class="card" aria-label="Connection">
-        <div class="label">1 · J.D. on USB</div>
-        <div class="conn" id="connText">Bluetooth chip out, USB cable in. Close the radar page and Arduino's Serial Monitor first, then click Connect and pick the CH340 / COM port.</div>
-        <button id="btnConnect" type="button">Connect J.D.</button>
+        <div class="label">1 · Connect J.D.</div>
+        <div class="conn" id="connText"></div>
+        <div class="row">
+          <button id="btnConnect" type="button" class="grow">USB</button>
+          <button id="btnBle" type="button" class="grow">Bluetooth</button>
+        </div>
       </section>
 
       <section class="card" aria-label="Brain">
@@ -214,8 +217,10 @@
     REACQUIRE: ['Searching', 'Target moved.', C.amber], LOST: ['Lost it', 'Target moved.', C.amber],
     LOCK: ['Locked on', 'Watching the closest thing.', C.green], WATCH: ['Watching', 'Holding still on the target.', C.green],
     SAFETY_STOP: ['Safety stop', 'Something is too close. Holding.', C.red],
+    CORNERED: ['Cornered!', 'Boxed in. Backing out to look for a way out.', C.amber],
+    SCAN: ['Looking around', 'Searching all around for the most open way.', C.amber],
   };
-  const MEASURING = ['ROAM', 'CURIOUS', 'PEEK', 'FAMILIAR', 'STUCK', 'DRIVE', 'BLOCKED', 'SWEEP', 'SEARCH', 'CENTER', 'WATCH', 'LOCK', 'SAFETY_STOP', 'LOST'];
+  const MEASURING = ['SCAN', 'CORNERED', 'ROAM', 'CURIOUS', 'PEEK', 'FAMILIAR', 'STUCK', 'DRIVE', 'BLOCKED', 'SWEEP', 'SEARCH', 'CENTER', 'WATCH', 'LOCK', 'SAFETY_STOP', 'LOST'];
 
   // Moments J.D. can talk about, and a backup line for each in case the brain is busy or offline.
   const EVENTS = {
@@ -226,6 +231,7 @@
     BLOCKED:  { what: (cm) => `Your driver tried to drive you forward into something ${cm} cm away, and your safety stop blocked it.`, backup: ['Something is in the way.'] },
     LOCK:     { what: (cm) => `In sentry mode you just locked onto the closest thing, about ${cm} cm away, and you are watching it.`, backup: ['Target locked.'] },
     EXPLORE_START: { what: () => `You are starting to explore the room.`, backup: ['Exploring.'] },
+    CORNERED: { what: () => `You kept bumping into walls on every side, like being boxed in under a desk. You backed out and are now looking all the way around for the way out.`, backup: ['I\'m boxed in. Let me find a way out.', 'Walls everywhere! Looking for the exit.'] },
   };
 
   const DEFAULT_PERSONA = [
@@ -483,12 +489,17 @@
     rec.start();
   });
 
-  // ---------- USB link to J.D. (Web Serial) ----------
+  // ---------- Link to J.D.: USB (Web Serial) or Bluetooth (Web Bluetooth) ----------
+  let link = null;                        // 'usb', 'ble' or null
   let port = null, writer = null, reader = null, closing = false, connected = false;
-  if (!('serial' in navigator)) { $('noSerial').classList.remove('hidden'); $('btnConnect').disabled = true; }
+  let bleDevice = null, bleWrite = null, bleChain = Promise.resolve();
+  const USB_HELP = '<b>USB:</b> Bluetooth chip out, cable in (close the radar page first). <b>Bluetooth:</b> chip in, cable out, J.D. switched on, Bluetooth adapter in the PC.';
+  if (!('serial' in navigator)) $('btnConnect').disabled = true;
+  if (!('bluetooth' in navigator)) { $('btnBle').disabled = true; $('btnBle').title = 'This PC has no Bluetooth yet'; }
 
+  // ---- USB ----
   $('btnConnect').addEventListener('click', async () => {
-    if (port) { await disconnect(); return; }
+    if (connected) { await disconnectAll(); return; }
     try {
       // If this page was already allowed to use J.D.'s port before, reuse it
       // (no chooser). Otherwise Chrome shows the port chooser.
@@ -498,12 +509,12 @@
       await p.open({ baudRate: 115200 });
       port = p;
       writer = port.writable.getWriter();
-      setConnected(true);
+      setConnected(true, 'usb');
       readLoop();
     } catch (err) {
       const msg = String(err && err.message || err);
       if (/No port selected/i.test(msg)) return;
-      $('connText').innerHTML = '<span class="bad">Could not open the port.</span> Close the radar page and Arduino\'s Serial Monitor (only one program can use it at a time), then try again.';
+      $('connText').innerHTML = '<span class="bad">Could not open the USB port.</span> Close the radar page and Arduino\'s Serial Monitor (only one program can use it at a time), then try again.';
       log('! ' + msg);
       port = null;
     }
@@ -530,35 +541,113 @@
     } finally {
       try { reader && reader.releaseLock(); } catch (e) {}
       reader = null;
-      if (!closing) await disconnect();
+      if (!closing && link === 'usb') await disconnectAll();
     }
   }
 
-  async function disconnect() {
+  // ---- Bluetooth ----
+  // The Makeblock chip is a wireless serial cable (service ffe1, read ffe2,
+  // write ffe3). Two other common layouts are tried too, just in case.
+  const PROFILES = [
+    { name: 'Makeblock', service: 0xffe1, notify: 0xffe2, write: 0xffe3 },
+    { name: 'HM-10', service: 0xffe0, notify: 0xffe1, write: 0xffe1 },
+    { name: 'Nordic UART', service: '6e400001-b5a3-f393-e0a9-e50e24dcca9e',
+      notify: '6e400003-b5a3-f393-e0a9-e50e24dcca9e', write: '6e400002-b5a3-f393-e0a9-e50e24dcca9e' },
+  ];
+  const bleDecoder = new TextDecoder();
+  let bleBuf = '';
+  function onBleData(ev) {
+    bleBuf += bleDecoder.decode(ev.target.value, { stream: true });
+    let i;
+    while ((i = bleBuf.indexOf('\n')) >= 0) {
+      const line = bleBuf.slice(0, i).replace(/\r/g, '').trim();
+      bleBuf = bleBuf.slice(i + 1);
+      if (line) handleLine(line);
+    }
+    if (bleBuf.length > 500) bleBuf = '';
+  }
+  $('btnBle').addEventListener('click', async () => {
+    if (connected) { await disconnectAll(); return; }
+    try {
+      $('connText').innerHTML = 'Pick J.D. in the list (named <b>Makeblock</b>)…';
+      bleDevice = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: PROFILES.map(p => p.service) });
+      bleDevice.addEventListener('gattserverdisconnected', () => { if (link === 'ble') { log('! Bluetooth link dropped.'); setConnected(false); $('connText').innerHTML = '<b>Bluetooth link dropped.</b> J.D. may be off or too far away. Click Bluetooth to try again.'; } });
+      $('connText').textContent = 'Connecting to ' + (bleDevice.name || 'J.D.') + '…';
+      const server = await bleDevice.gatt.connect();
+      let used = null;
+      for (const pr of PROFILES) {
+        try {
+          const svc = await server.getPrimaryService(pr.service);
+          const n = await svc.getCharacteristic(pr.notify);
+          const w = await svc.getCharacteristic(pr.write);
+          await n.startNotifications();
+          n.addEventListener('characteristicvaluechanged', onBleData);
+          bleWrite = w; used = pr;
+          break;
+        } catch (e) { log('· ' + pr.name + ' layout: not here'); }
+      }
+      if (!used) throw new Error('Connected, but could not find the serial channel. Send Claude the log.');
+      log('Bluetooth connected using the ' + used.name + ' layout.');
+      setConnected(true, 'ble');
+      setTimeout(() => send('i'), 600);
+    } catch (err) {
+      const msg = String(err && err.message || err);
+      if (/cancel/i.test(msg) || (err && err.name === 'NotFoundError')) { $('connText').innerHTML = USB_HELP; return; }
+      $('connText').innerHTML = '<span class="bad">Bluetooth didn\'t connect.</span> ' + msg;
+      log('! ' + msg);
+      try { bleDevice && bleDevice.gatt.connected && bleDevice.gatt.disconnect(); } catch (e) {}
+      bleWrite = null;
+    }
+  });
+
+  // ---- Both ----
+  async function disconnectAll() {
     closing = true;
-    try { reader && await reader.cancel(); } catch (e) {}
-    try { writer && writer.releaseLock(); } catch (e) {}
-    try { port && await port.close(); } catch (e) {}
-    port = null; writer = null; reader = null;
+    if (link === 'usb') {
+      try { reader && await reader.cancel(); } catch (e) {}
+      try { writer && writer.releaseLock(); } catch (e) {}
+      try { port && await port.close(); } catch (e) {}
+      port = null; writer = null; reader = null;
+    }
+    if (link === 'ble') {
+      try { bleDevice && bleDevice.gatt.connected && bleDevice.gatt.disconnect(); } catch (e) {}
+      bleWrite = null;
+    }
     closing = false;
     setConnected(false);
   }
 
   async function send(ch) {
-    if (!writer) return;
-    try { await writer.write(new TextEncoder().encode(ch)); log('> sent "' + ch + '"'); }
-    catch (err) { log('! Could not send: ' + (err && err.message || err)); }
+    if (link === 'usb' && writer) {
+      try { await writer.write(new TextEncoder().encode(ch)); log('> sent "' + ch + '"'); }
+      catch (err) { log('! Could not send: ' + (err && err.message || err)); }
+    } else if (link === 'ble' && bleWrite) {
+      const bytes = new TextEncoder().encode(ch);
+      bleChain = bleChain.then(async () => {
+        try {
+          if (bleWrite.properties && bleWrite.properties.writeWithoutResponse && bleWrite.writeValueWithoutResponse) await bleWrite.writeValueWithoutResponse(bytes);
+          else await bleWrite.writeValue(bytes);
+          log('> sent "' + ch + '" (Bluetooth)');
+        } catch (err) { log('! Could not send: ' + (err && err.message || err)); }
+      });
+      return bleChain;
+    }
   }
 
-  function setConnected(on) {
+  function setConnected(on, how) {
     connected = on;
-    $('btnConnect').textContent = on ? 'Disconnect' : 'Connect J.D.';
+    link = on ? how : null;
+    $('btnConnect').textContent = on && how === 'usb' ? 'Disconnect' : 'USB';
+    $('btnBle').textContent = on && how === 'ble' ? 'Disconnect' : 'Bluetooth';
+    $('btnConnect').disabled = !('serial' in navigator) || (on && how !== 'usb');
+    $('btnBle').disabled = !('bluetooth' in navigator) || (on && how !== 'ble');
     ['btnExplore', 'btnSentry', 'btnStop'].forEach(id => $(id).disabled = !on);
     $('connText').innerHTML = on
-      ? '<b>Connected.</b> J.D. restarts when you connect, so it begins in Standby.'
-      : 'Bluetooth chip out, USB cable in. Close the radar page and Arduino\'s Serial Monitor first, then click Connect and pick the CH340 / COM port.';
+      ? (how === 'usb' ? '<b>Connected by USB.</b> J.D. restarts when you connect, so it begins in Standby.' : '<b>Connected by Bluetooth.</b> J.D. is wireless.')
+      : USB_HELP;
     if (!on) setState(null);
   }
+  $('connText').innerHTML = USB_HELP;
 
   // ---------- Messages from J.D. ----------
   function handleLine(line) {

@@ -90,7 +90,7 @@
       <div class="kicker">J.D. · PHONE CONTROL</div>
       <h1>J.D. Phone</h1>
     </div>
-    <div class="ver">for J.D. v0.8<br>Bluetooth</div>
+    <div class="ver">for J.D. v0.9<br>Bluetooth</div>
   </header>
 
   <div id="noBle" class="card hidden" role="alert">
@@ -185,6 +185,8 @@
     CURIOUS:     ['Curious!',    'Found something. Taking a look.',           C.purple],
     PEEK:        ['Curious!',    'Peeking left and right.',                   C.purple],
     FAMILIAR:    ['Oh, you again', 'Met this already. Turning around.',       C.purple],
+    CORNERED:    ['Cornered!',   'Boxed in. Looking all around for a way out.', C.amber],
+    SCAN:        ['Looking around', 'Searching for the most open way.',     C.amber],
     STUCK:       ['Stuck!',      'Pushing on something it can\'t hear. Backing out.', C.amber],
     EDGE:        ['Edge!',       'The floor disappeared. Backing away.',      C.red],
     EDGE_GUARD_ON:  ['Exploring', 'Edge guard ON: it can see edges here.',   C.cyan],
@@ -202,13 +204,14 @@
     WATCH:       ['Watching',    'Holding still on the target.',              C.green],
     SAFETY_STOP: ['Safety stop', 'Something is too close. Holding.',          C.red],
   };
-  const EXPLORE_KEYS = ['EXPLORE', 'ROAM', 'WANDER', 'CURIOUS', 'PEEK', 'FAMILIAR', 'STUCK', 'EDGE', 'EDGE_GUARD_ON', 'EDGE_GUARD_OFF'];
-  const MEASURING = ['DRIVE', 'BLOCKED', 'ROAM', 'CURIOUS', 'PEEK', 'FAMILIAR', 'STUCK', 'SWEEP', 'SEARCH', 'CENTER', 'WATCH', 'LOCK', 'SAFETY_STOP', 'LOST'];
+  const EXPLORE_KEYS = ['EXPLORE', 'ROAM', 'WANDER', 'CURIOUS', 'PEEK', 'FAMILIAR', 'CORNERED', 'SCAN', 'STUCK', 'EDGE', 'EDGE_GUARD_ON', 'EDGE_GUARD_OFF'];
+  const MEASURING = ['SCAN', 'CORNERED', 'DRIVE', 'BLOCKED', 'ROAM', 'CURIOUS', 'PEEK', 'FAMILIAR', 'STUCK', 'SWEEP', 'SEARCH', 'CENTER', 'WATCH', 'LOCK', 'SAFETY_STOP', 'LOST'];
 
   // ---------- Voice ----------
   const PHRASES = {
     CURIOUS: ['Oh! What is this?', 'Hmm. What\'s that?', 'Oh, something is here.', 'What do we have here?', 'Hello? Who\'s there?', 'Huh. Interesting.'],
     FAMILIAR: ['Oh. It\'s you again.', 'I already met you.', 'This again? Okay.', 'Hello again, old friend.', 'Yep. Still here.', 'Been there. Turning around.'],
+    CORNERED: ['I\'m boxed in. Let me find a way out.', 'Walls everywhere! Looking for the exit.', 'Okay, this is a corner. Turning around.'],
     STUCK: ['Uh oh. I\'m stuck.', 'Hmm. Something is blocking me.', 'Little help? Never mind, I got it.', 'Backing out.'],
     EDGE: ['Whoa! That\'s an edge.', 'Nope. Not going over there.', 'Careful. Edge.'],
     START: ['Exploring.', 'Let\'s see what\'s out there.', 'Off I go.'],
@@ -431,6 +434,7 @@
     if (key === 'CURIOUS')  say(pick(PHRASES.CURIOUS),  { kind: 'curious', gap: 3000 });
     if (key === 'FAMILIAR') say(pick(PHRASES.FAMILIAR), { kind: 'familiar', gap: 3000 });
     if (key === 'STUCK')    say(pick(PHRASES.STUCK),    { kind: 'stuck', gap: 3000 });
+    if (key === 'CORNERED') say(pick(PHRASES.CORNERED), { kind: 'cornered', gap: 3000 });
     if (key === 'EDGE')     say(pick(PHRASES.EDGE),     { kind: 'edge', force: true });
     if (key === 'DRIVE_START') say(pick(PHRASES.DRIVE), { kind: 'drive', gap: 15000 });
     if (key === 'BLOCKED')  say(pick(PHRASES.BLOCKED),  { kind: 'blocked', gap: 3000 });
