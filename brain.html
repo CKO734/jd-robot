@@ -154,6 +154,7 @@
         <label class="field">Model
           <select id="modelSel"></select>
         </label>
+        <div class="conn" id="replyTime">Best pick for J.D.: <b>qwen3.5:4b</b> (quick, and it can see pictures later).</div>
         <div class="row">
           <button id="btnCheck" type="button" class="grow">Check Ollama</button>
           <button id="btnHello" type="button" class="grow">Say hello</button>
@@ -277,7 +278,7 @@
   }
 
   // ---------- Brain (Ollama) ----------
-  let ollamaOk = false, busy = false;
+  let ollamaOk = false, busy = false, useThink = true;
   const history = [];                 // recent conversation, kept short
   const today = { curious: 0, familiar: 0, stuck: 0, edge: 0, blocked: 0 };
   let stateKey = null, lastCm = null;
@@ -300,10 +301,17 @@
         $('ollamaText').innerHTML = '<span class="bad">Ollama is running but has no models.</span> Download one first (ask Claude which).';
         return;
       }
-      const pref = models.find(n => n === keep) || models.find(n => /llama3\.2|qwen|gemma|phi|mistral|llama/i.test(n) && !/embed|vision|vl/i.test(n)) || models[0];
+      let saved = null;
+      try { saved = localStorage.getItem('jd-brain-model'); } catch (_) {}
+      const chatOk = (n) => !/coder|embed|ocr|-vl|vl:|vision|deepseek-r1|moondream|smollm/i.test(n);
+      const order = [/^qwen3\.5:4b/, /^qwen3\.5/, /^hermes3/, /^qwen3:/, /llama3/, /gemma/, /mistral/];
+      let pref = models.find(n => n === keep) || models.find(n => n === saved);
+      for (const re of order) { if (!pref) pref = models.find(n => re.test(n) && chatOk(n)); }
+      if (!pref) pref = models.find(chatOk) || models[0];
       sel.value = pref;
       ollamaOk = true;
-      $('ollamaText').innerHTML = '<span class="ok">Ollama is answering.</span> ' + models.length + ' model' + (models.length === 1 ? '' : 's') + ' found.';
+      $('ollamaText').innerHTML = '<span class="ok">Ollama is answering.</span> ' + models.length + ' model' + (models.length === 1 ? '' : 's') + ' found. Loading the model…';
+      warmUp();
     } catch (err) {
       ollamaOk = false;
       $('ollamaText').innerHTML = '<span class="bad">Can\'t reach Ollama.</span> Make sure Ollama is running, and that you did the one-time <b>OLLAMA_ORIGINS</b> step, then restarted Ollama. J.D. will use its backup lines until then.';
@@ -311,6 +319,24 @@
     }
   }
   $('btnCheck').addEventListener('click', checkOllama);
+
+  // Load the model into the graphics card now, so the first reply is quick.
+  async function warmUp() {
+    const model = $('modelSel').value;
+    if (!model) return;
+    const t0 = performance.now();
+    try {
+      await fetch(OLLAMA + '/api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model, keep_alive: '30m' }) });
+      if ($('modelSel').value === model) $('ollamaText').innerHTML = '<span class="ok">Ollama is answering.</span> <b>' + model + '</b> is loaded (' + ((performance.now() - t0) / 1000).toFixed(1) + ' s).';
+    } catch (err) { log('! Warm-up: ' + (err && err.message || err)); }
+  }
+  $('modelSel').addEventListener('change', () => {
+    useThink = true;
+    try { localStorage.setItem('jd-brain-model', $('modelSel').value); } catch (_) {}
+    history.length = 0;                       // new brain, fresh conversation
+    $('ollamaText').innerHTML = 'Loading <b>' + $('modelSel').value + '</b>…';
+    warmUp();
+  });
   checkOllama();
 
   function situation() {
@@ -335,15 +361,27 @@
     try {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 45000);
-      const r = await fetch(OLLAMA + '/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: $('modelSel').value, messages, stream: false, format: 'json', keep_alive: '30m', options: { temperature: 0.8, num_predict: 150 } }),
-        signal: ctrl.signal,
-      });
+      const t0 = performance.now();
+      // think:false = answer right away instead of "thinking out loud" first
+      // (Qwen3.5 / Qwen3 think by default, which is slow for a robot).
+      // Settings below are Qwen's recommended ones for quick, non-thinking chat.
+      const body = { model: $('modelSel').value, messages, stream: false, format: 'json', keep_alive: '30m',
+                     options: { temperature: 0.7, top_p: 0.8, top_k: 20, presence_penalty: 1.5, num_predict: 150, num_ctx: 4096 } };
+      if (useThink) body.think = false;
+      let r = await fetch(OLLAMA + '/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: ctrl.signal });
+      if (!r.ok && useThink) {
+        const txt = await r.text();
+        if (/think/i.test(txt)) {                 // this model doesn't know the "think" switch
+          useThink = false; delete body.think;
+          r = await fetch(OLLAMA + '/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: ctrl.signal });
+        } else throw new Error('HTTP ' + r.status + ' ' + txt.slice(0, 120));
+      }
       clearTimeout(timer);
       if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + (await r.text()).slice(0, 120));
       const data = await r.json();
+      const secs = (performance.now() - t0) / 1000;
+      $('replyTime').textContent = 'Last reply: ' + secs.toFixed(1) + ' s with ' + body.model;
+      log('Brain answered in ' + secs.toFixed(1) + ' s (' + body.model + ')');
       const raw = ((data.message && data.message.content) || '').replace(/<think>[\s\S]*?<\/think>/g, '').trim();
       let out = null;
       try { out = JSON.parse(raw); } catch (_) {
